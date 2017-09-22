@@ -1,0 +1,105 @@
+---
+title: "IRS990DataExtraction"
+author: "Jenny"
+date: "9/22/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Take a list of Employer Identification Numbers (EIN) for non-profit organizations of interest, extract tax return data from Amazon Web Server, and save in a dataframe format.
+
+Install some packages
+```{r}
+library( jsonlite )
+library( R.utils )
+library(data.table)
+library(tidyverse)
+```
+
+Using information from Jeff Lecy's Open Data for Nonprofit Research
+https://github.com/lecy/Open-Data-for-Nonprofit-Research/tree/master/Open_Nonprofit_Datasets
+Download dataframe of non-profit returns filed from 2011 to 2017 (2017 will be incomplete), including name, URL of return, and EIN.
+
+If you only need data from one year, it is not necessary to download all of these. However, the data file year is the year in which the tax retun was filed with the IRS and that might correspond to the previous fiscal year or even the year before that. Fiscal year will appear in the 990 data. So it might be necessary to download more than one of these files, depending on your needs.
+
+```{r}
+Returns990_2011 <- fromJSON("https://s3.amazonaws.com/irs-form-990/index_2011.json")[[1]]
+Returns990_2012 <- fromJSON("https://s3.amazonaws.com/irs-form-990/index_2012.json")[[1]]
+Returns990_2013 <- fromJSON("https://s3.amazonaws.com/irs-form-990/index_2013.json")[[1]]
+Returns990_2014 <- fromJSON("https://s3.amazonaws.com/irs-form-990/index_2014.json")[[1]]
+Returns990_2015 <- fromJSON("https://s3.amazonaws.com/irs-form-990/index_2015.json")[[1]]
+Returns990_2016 <- fromJSON("https://s3.amazonaws.com/irs-form-990/index_2016.json")[[1]]
+Returns990_2017 <- fromJSON("https://s3.amazonaws.com/irs-form-990/index_2017.json")[[1]]
+```
+
+View top few rows to see what you have.
+```{r}
+View(head(Returns990_2011))
+```
+
+copy and paste FUNCTION TO COLLECT DATA FROM XML DOCS ON AWS (lines 144 to 2688 of code) from 
+https://github.com/lecy/Open-Data-for-Nonprofit-Research/blob/master/Build_IRS990_E-Filer_Datasets/BUILD_EFILER_DATABASE.R
+into new .R file and run code to create the function scrapeXML(). This function will extract all data points from a single submitted 990. Input requires the AWS URL of the return and form type of return (990, 990EZ). These can be obtained from the downloaded list of all retuns for a given year ex:Returns990_2016, cross referenced with EIN or other identifiers. 
+
+As a test, pick the 6th row of Returns990_2016 (url is column 5 and form type is column 4).
+Importing as a data frame, otherwise it will make a list.
+
+
+```{r}
+url1 <- Returns990_2016[6,5]
+form.type <- Returns990_2016[6,4]
+attempt1<-as.data.frame(scrapeXML(url1,form.type))
+```
+
+
+Examine dataframe with 1 row and 234 columns to see what data will be returned for each matched EIN.
+```{r}
+glimpse(attempt1)
+```
+
+Read in a csv file of EINs of interest "EINs.csv" with the header name "EIN" for the column containing EINs.
+
+Match these EINs to EIN in Returns990_2014, Returns990_2015, Returns990_2016, Returns990_2017, etc. as a key, then extract rows and subset of variables to make a new dataframe that will be used with scrapeXML().
+
+Three types of returns represented: 990 990EZ 990PF, but Lecey's scrapeXML() only addreses 990 and 990EZ, so will stop once it reaches a 990PF return. Therefore, remove rows where FormType == 990PF. Combine to make single dataframe and remove unnecessary columns.
+```{r}
+MyEINs <- read.csv("EINs.csv")
+
+MyEINlist <- as.list(MyEINs$EIN)
+
+Returns2011_2014 <- rbind(Returns990_2011[,c(1,4:6)], Returns990_2012[,c(1,4:6)], Returns990_2013[,c(1,4:6)], Returns990_2014[,c(1,4:6)])
+
+MyReturns2011_2014 <- subset(Returns2011_2014, EIN %in% MyEINlist)
+MyReturns2011_2014$FormType <- as.factor(MyReturns2011_20142$FormType)
+MyReturns2011_2014 <- subset(MyReturns2011_2014, FormType != "990PF")
+
+Returns2015_2017 <- rbind(Returns990_2015[,c(1,4:6)], Returns990_2016[,c(1,4:6)], Returns990_2017[,c(1,4:6)])
+
+MyReturns2015_2017 <- subset(Returns2015_2017, EIN %in% MyEINlist)
+MyReturns2015_2017$FormType <- as.factor(MyReturns2015_2017$FormType)
+MyReturns2015_2017 <- subset(MyReturns2015_2017, FormType != "990PF")
+
+MyReturns2011_2017 <- rbind(MyReturns2011_2014, MyReturns2015_2017)
+
+
+```
+
+
+Using URL and form.type as input, use Jeffy Lecy's scrapeXML() to get 990 fields into dataframe form and then write to csv file.
+
+
+```{r}
+MyReturnsData <- data.frame() ## make empty data frame to fill using for loop
+totalrows<-nrow(MyReturns2011_2017) ## length of dataframe of EIN/URLs
+for(RowNumber in 1:totalrows){
+        newReturn <- as.data.frame(scrapeXML(CPCs2011_2017[RowNumber,3],CPCs2011_2017[RowNumber,2]))
+        MyReturnsData <- rbind(MyReturnsData, newReturn)
+        ## un-comment print(CPC) line, below, if this loop gets stuck on a particular row. By printing the number of each row it's processing, you can find the suspect row, and then look at the 990 to find out what the problem is. Then perhaps remove that row and start again.
+        ## print(CPC)
+        
+}
+
+write.csv(MyReturnsData, "MyReturnsData.csv")
+```
