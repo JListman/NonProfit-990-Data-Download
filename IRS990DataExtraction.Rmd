@@ -6,9 +6,10 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
-Take a list of Employer Identification Numbers (EIN) for non-profit organizations of interest, extract tax return data from Amazon Web Server, and save in a dataframe format.
+Take a list of Employer Identification Numbers (EIN) for non-profit organizations of interest, 
+extract tax return data from Amazon Web Server, and save in a dataframe format.
 
 Install some packages
 ```{r}
@@ -69,13 +70,15 @@ MyEINs <- read.csv("EINs.csv")
 
 MyEINlist <- as.list(MyEINs$EIN)
 
-Returns2011_2014 <- rbind(Returns990_2011[,c(1,4:6)], Returns990_2012[,c(1,4:6)], Returns990_2013[,c(1,4:6)], Returns990_2014[,c(1,4:6)])
+Returns2011_2014 <- rbind(Returns990_2011[,c(1,4:6)], Returns990_2012[,c(1,4:6)], 
+        Returns990_2013[,c(1,4:6)], Returns990_2014[,c(1,4:6)])
 
 MyReturns2011_2014 <- subset(Returns2011_2014, EIN %in% MyEINlist)
 MyReturns2011_2014$FormType <- as.factor(MyReturns2011_20142$FormType)
 MyReturns2011_2014 <- subset(MyReturns2011_2014, FormType != "990PF")
 
-Returns2015_2017 <- rbind(Returns990_2015[,c(1,4:6)], Returns990_2016[,c(1,4:6)], Returns990_2017[,c(1,4:6)])
+Returns2015_2017 <- rbind(Returns990_2015[,c(1,4:6)], Returns990_2016[,c(1,4:6)], 
+        Returns990_2017[,c(1,4:6)])
 
 MyReturns2015_2017 <- subset(Returns2015_2017, EIN %in% MyEINlist)
 MyReturns2015_2017$FormType <- as.factor(MyReturns2015_2017$FormType)
@@ -96,7 +99,9 @@ totalrows<-nrow(MyReturns2011_2017) ## length of dataframe of EIN/URLs
 for(RowNumber in 1:totalrows){
         newReturn <- as.data.frame(scrapeXML(CPCs2011_2017[RowNumber,3],CPCs2011_2017[RowNumber,2]))
         MyReturnsData <- rbind(MyReturnsData, newReturn)
-        ## un-comment print(CPC) line, below, if this loop gets stuck on a particular row. By printing the number of each row it's processing, you can find the suspect row, and then look at the 990 to find out what the problem is. Then perhaps remove that row and start again.
+        ## un-comment print(CPC) line, below, if this loop gets stuck on a particular row. 
+        ## By printing the number of each row it's processing, you can find the suspect row, 
+        ## and then look at the 990 to find out what the problem is. Then perhaps remove that row and start again.
         ## print(CPC)
         
 }
